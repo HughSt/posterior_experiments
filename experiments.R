@@ -1,3 +1,6 @@
+library(mgcv)
+library(geostatsp)
+RFsimulate <- RandomFields::RFsimulate # REquired as geostatsp masks this function
 
 # Experimenting with different spatial prediction methods for 
 # binomial data. Source useful functions
@@ -29,9 +32,10 @@ REML_estimates <- optimal_range(min_dist = 0.01,
               max_dist = max(dist(model_data@data[,c("x", "y")])),
               model_data = model_data)
 
-# fit model
+# fit models
 gam_mod_gp <- mgcv::gam(cbind(n_pos, n_neg) ~ s(x, y, k=-1, bs="gp", m = c(3,REML_estimates$best_m)),
                         data = model_data, family="binomial", method = "REML")
+
 
 
 # Predict
@@ -47,7 +51,8 @@ plot(exceedance_probs_raster)
 
 # Validate the posterior in 2 ways. 1) Calculate the proportion of times 
 # the 'true' prevalence value was above threshold and compare to 
-# exceedance probabilities
+# exceedance probabilities and 2) calc the proportion of times
+# the true prevalence value lies within defined quantile range of the posterior 
 validation_results <- list(exceedance_perf=NULL,
                            posterior_perf=NULL)
 for(i in 1:99){
@@ -84,7 +89,7 @@ prediction_interval <- validate_posterior(gam_mod_gp,
 plot_order <- order(villages@data$prev)
 
 # Plot the first n points with confidence intervals
-plot(villages@data$prev[plot_order],cex=0.2,pch=16, xlim=c(1,500))
+plot(villages@data$prev[plot_order],cex=0.2,pch=16, xlim=c(1,100))
 for(i in 1:nrow(prediction_interval$prev_quantiles)){
   lines(rep(i, 2), c(prediction_interval$prev_quantiles[plot_order[i],1],
                      prediction_interval$prev_quantiles[plot_order[i],2]), col="gray80")

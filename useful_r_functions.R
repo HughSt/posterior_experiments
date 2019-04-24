@@ -70,7 +70,7 @@ simulate_risk <- function(seed, var, scale, mean, nrow=256, ncol=256){
   model <- RMexp(var=var, scale=scale)
   
   set.seed(seed)
-  simu <- RFsimulate(model, x=1:ncol, 
+  simu <- RandomFields::RFsimulate(model, x=1:ncol, 
                      y=1:nrow, RFoptions(spConform=FALSE))
 
   # Convert to raster
@@ -91,9 +91,9 @@ simulate_risk <- function(seed, var, scale, mean, nrow=256, ncol=256){
 
 ## Simulate some villages
 simulate_villages <- function(seed, kappa, scale, mu, ref_raster){
-  
+
   set.seed(seed)
-  owin_area <- as.owin(as.im(ref_raster))
+  owin_area <- owin(extent(ref_raster)[1:2], extent(ref_raster)[3:4])
   set.seed(seed)
   villages_pp <- rMatClust(kappa, scale, mu, win=owin_area)
   
@@ -110,12 +110,25 @@ simulate_villages <- function(seed, kappa, scale, mu, ref_raster){
 
 # Take initial sample
 initial_survey <- function(seed, villages_SP, n, n_ind){
+
   set.seed(seed)
   selected_villages <- sample(1:nrow(villages_SP), n)
   survey_villages <- villages_SP[selected_villages,]
   survey_villages$n_pos <- rbinom(length(selected_villages), n_ind, survey_villages$prev)
   survey_villages$n_neg <- n_ind - survey_villages$n_pos
   return(survey_villages)
+}
+
+
+# Generate stack of raster with lat and lng
+gen_pred_stack <- function(ref_raster){
+  
+  x <- y <- ref_raster
+  x[] <- coordinates(x)[,1]
+  y[] <- coordinates(y)[,2]
+  stacked <- stack(x, y)
+  names(stacked) <- c("x", "y")
+  return(stacked)
 }
 
 
