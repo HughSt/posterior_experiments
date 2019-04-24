@@ -36,7 +36,11 @@ REML_estimates <- optimal_range(min_dist = 0.01,
 gam_mod_gp <- mgcv::gam(cbind(n_pos, n_neg) ~ s(x, y, k=-1, bs="gp", m = c(3,REML_estimates$best_m)),
                         data = model_data, family="binomial", method = "REML")
 
-
+# Fit GP model with INLA using the geostatsp package
+# glgm_mod <- glgm(formula = n_pos ~ 1, 
+#      data = model_data, grid = 150, family = "binomial",
+#      Ntrials = (model_data$n_neg + model_data$n_neg), shape = 1, buffer = 0.1,
+#      priorCI = list(sd = c(0.2, 4), range = c(0.5, 5e+05)))
 
 # Predict
 pred_raster <- gen_pred_stack(risk_raster)
