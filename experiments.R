@@ -1,7 +1,7 @@
 
 # Experimenting with different spatial prediction methods for 
-# binomial data
-source("/Users/sturrockh/Documents/Work/MEI/DiSARM/GitRepos/useful_r_functions/useful_r_functions.R")
+# binomial data. Source useful functions
+source("https://raw.githubusercontent.com/HughSt/posterior_experiments/master/useful_r_functions.R")
 
 # Simluate some data
 risk_raster <- simulate_risk(seed=1981, 
@@ -23,14 +23,15 @@ points(villages)
 # Take a sample
 model_data <- initial_survey(1981, villages, n=100, n_ind=100)
 
-# Fit GAM model
+# Fit GAM model. First calculate optimal 'range' parameter of a
+# gp model (using matern covariance model)
 REML_estimates <- optimal_range(min_dist = 0.01, 
               max_dist = max(dist(model_data@data[,c("x", "y")])),
               model_data = model_data)
 
+# fit model
 gam_mod_gp <- mgcv::gam(cbind(n_pos, n_neg) ~ s(x, y, k=-1, bs="gp", m = c(3,REML_estimates$best_m)),
                         data = model_data, family="binomial", method = "REML")
-
 
 
 # Predict
