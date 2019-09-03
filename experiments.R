@@ -33,7 +33,9 @@ REML_estimates <- optimal_range(min_dist = 0.01,
               model_data = model_data)
 
 # fit models
-gam_mod_gp <- mgcv::gam(cbind(n_pos, n_neg) ~ s(x, y, k=-1, bs="gp", m = c(3,REML_estimates$best_m)),
+gam_mod_gp <- mgcv::gam(cbind(n_pos, n_neg) ~ 
+                          s(x, y, k=5, bs="gp", m = c(3,REML_estimates$best_m)),
+                          #s(id, bs="re"),
                         data = model_data, family="binomial", method = "REML")
 
 # Fit GP model with INLA using the geostatsp package
@@ -97,4 +99,71 @@ plot(villages@data$prev[plot_order],cex=0.2,pch=16, xlim=c(1,100))
 for(i in 1:nrow(prediction_interval$prev_quantiles)){
   lines(rep(i, 2), c(prediction_interval$prev_quantiles[plot_order[i],1],
                      prediction_interval$prev_quantiles[plot_order[i],2]), col="gray80")
+}; points(villages@data$prev[plot_order],cex=0.2,pch=16)
+
+
+
+
+############################### ############################### ############################### 
+############################### try spaMM  ############################### 
+############################### ############################### ############################### 
+library(spaMM)
+lfit <- fitme(cbind(n_pos, n_neg) ~
+                   Matern(1|x+y),
+                  data=model_data@data,
+                  family=binomial())
+
+predictions_lfit <- predict(pred_raster, lfit, type="response")
+plot(predictions_lfit)
+
+sims <- simulate(lfit, 
+                 type = "(ranef|response)", 
+                 nsim = 10,
+                 newdata = villages@data)
+hist(sims[1,])
+pal <- colorNumeric(tim.colors(), c(0,60))
+plot(villages$x, villages$y, col = pal(sims[,1]), pch= 16)
+
+res <- validate_posterior_spaMM (lfit, villages@data, 100, 0.2, 0.2)
+
+
+# Validate the Posterior of the spaMM model. Get a cup of tea...
+validation_results_spaMM <- list(exceedance_perf=NULL,
+                           posterior_perf=NULL)
+for(i in 1:99){
+  validation_spaMM <- validate_posterior_spaMM(lfit, 
+                                   villages@data, 
+                                   n_sims = 500, 
+                                   prob_threshold = i/100,
+                                   prob_width = i/100)
+  
+  validation_results_spaMM$exceedance_perf <- c(validation_results_spaMM$exceedance_perf,
+                                                validation_spaMM$exceedance_perf)
+  validation_results_spaMM$posterior_perf <- c(validation_results_spaMM$posterior_perf,
+                                               validation_spaMM$posterior_perf)
+}
+
+# Plot exceedance probabilities
+plot(1 - (1:99/100), validation_results_spaMM$exceedance_perf ,
+     xlab = "Exceedance probability",
+     ylab = "Proportion correct")
+
+# Plot coverage
+plot(1:99/100, validation_results_spaMM$posterior_perf,
+     xlab = "Centred prediction quantile",
+     ylab = "Proportion correct")
+
+# plot 95% prediction intervals
+prediction_interval_spaMM <-  validate_posterior_spaMM(lfit, 
+                                                 villages@data, 
+                                                 n_sims = 500, 
+                                                 prob_threshold = NULL,
+                                                 prob_width = 0.95)
+
+
+# Plot the first n points with confidence intervals
+plot(villages@data$prev[plot_order],cex=0.2,pch=16)
+for(i in 1:nrow(prediction_interval_spaMM$prev_quantiles)){
+  lines(rep(i, 2), c(prediction_interval_spaMM$prev_quantiles[plot_order[i],1],
+                     prediction_interval_spaMM$prev_quantiles[plot_order[i],2]), col="gray80")
 }; points(villages@data$prev[plot_order],cex=0.2,pch=16)

@@ -19,7 +19,7 @@ return(list(REML = REML,
 
 ## Get exceedance probabilities
 exceedance_prob <- function(gam_model, prediction_data, n_sims, threshold){
-  
+  browser()
   Cg <- predict(gam_model, prediction_data, type = "lpmatrix")
   sims <- rmvn(n_sims, mu = coef(gam_model), V = vcov(gam_model, unconditional = TRUE))
   fits <- Cg %*% t(sims)
@@ -60,7 +60,29 @@ validate_posterior <- function(gam_model, prediction_data, n_sims, prob_threshol
 }
 
 
-
+validate_posterior_spaMM <- function(spaMM_model, prediction_data, n_sims, prob_threshold, prob_width){
+  
+  fits_prev <- simulate(spaMM_model, 
+                   type = "(ranef|response)", 
+                   nsim = n_sims,
+                   newdata =prediction_data)
+  
+  # Convert to prevalence
+  fits_prev <- fits_prev/100
+  
+  # Calc prevalence threshold from probability threshold
+  prev_threshold <- apply(fits_prev, 1, function(x){quantile(x, prob = prob_threshold)})
+  exceedance_perf <- mean(prediction_data$prev >= prev_threshold)
+  
+  # Calc proportion of true prevalence values fall within the middle 
+  # prob_width
+  quant_probs <- c((1 - prob_width)/2, (1 - (1 - prob_width)/2))
+  prev_quantiles <- apply(fits_prev, 1, function(x){quantile(x, prob = quant_probs)})
+  posterior_perf <- mean(prediction_data$prev >= prev_quantiles[1,] & prediction_data$prev <= prev_quantiles[2,])
+  return(list(exceedance_perf = exceedance_perf,
+              posterior_perf = posterior_perf,
+              prev_quantiles = t(prev_quantiles)))
+}
 
 # Simulate risk
 simulate_risk <- function(seed, var, scale, mean, nrow=256, ncol=256){ 
