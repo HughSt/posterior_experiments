@@ -34,7 +34,9 @@ REML_estimates <- optimal_range(min_dist = 0.01,
 
 # fit models
 gam_mod_gp <- mgcv::gam(cbind(n_pos, n_neg) ~ 
-                          s(x, y, k=5, bs="gp", m = c(3,REML_estimates$best_m)),
+                          s(x, y, bs="gp", 
+                            m = c(3, 0.03)),
+                            #m = c(3,REML_estimates$best_m)),
                           #s(id, bs="re"),
                         data = model_data, family="binomial", method = "REML")
 
@@ -75,7 +77,7 @@ for(i in 1:99){
 }
 
 # Plot exceedance probabilities
-plot(1 - (1:99/100), validation_results$exceedance_perf ,
+plot(1:99/100, validation_results$exceedance_perf ,
      xlab = "Exceedance probability",
      ylab = "Proportion correct")
 
@@ -144,7 +146,7 @@ for(i in 1:99){
 }
 
 # Plot exceedance probabilities
-plot(1 - (1:99/100), validation_results_spaMM$exceedance_perf ,
+plot(1:99/100, validation_results_spaMM$exceedance_perf ,
      xlab = "Exceedance probability",
      ylab = "Proportion correct")
 
@@ -167,3 +169,12 @@ for(i in 1:nrow(prediction_interval_spaMM$prev_quantiles)){
   lines(rep(i, 2), c(prediction_interval_spaMM$prev_quantiles[plot_order[i],1],
                      prediction_interval_spaMM$prev_quantiles[plot_order[i],2]), col="gray80")
 }; points(villages@data$prev[plot_order],cex=0.2,pch=16)
+
+
+
+############################### ############################### ############################### 
+############################### try spaMM  using interpolatd GMRF ############################# 
+############################### ############################### ############################### 
+
+
+
