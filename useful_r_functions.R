@@ -19,7 +19,6 @@ return(list(REML = REML,
 
 ## Get exceedance probabilities
 exceedance_prob <- function(gam_model, prediction_data, n_sims, threshold){
-  browser()
   Cg <- predict(gam_model, prediction_data, type = "lpmatrix")
   sims <- rmvn(n_sims, mu = coef(gam_model), V = vcov(gam_model, unconditional = TRUE))
   fits <- Cg %*% t(sims)
