@@ -5,11 +5,11 @@ library(spatstat)
 
 
 # Estimate optimal range parameter in a gp smooth
-optimal_range <- function(min_dist, max_dist, length.out = 100, model_data){
+optimal_range <- function(min_dist, max_dist, length.out = 100, model_data, k=-1){
   
 REML <- r <- seq(min_dist, max_dist, length.out = length.out)
 for (i in seq_along(r)) {
-  m <- gam(cbind(n_pos, n_neg) ~ s(x, y, k = -1, bs = "gp", m = c(3, r[i])), 
+  m <- gam(cbind(n_pos, n_neg) ~ s(x, y, k = k, bs = "gp", m = c(3, r[i])), 
            family = "binomial", data = model_data, method = "REML")
   REML[i] <- m$gcv.ubre
 }
@@ -22,7 +22,11 @@ exceedance_prob <- function(gam_model, prediction_data, n_sims, threshold){
   Cg <- predict(gam_model, prediction_data, type = "lpmatrix")
   sims <- rmvn(n_sims, mu = coef(gam_model), V = vcov(gam_model, unconditional = TRUE))
   fits <- Cg %*% t(sims)
-  fits_prev <- exp(fits) / (1 + exp(fits))
+  
+  # Add residual error
+  error_samp <- sample(resid(gam_model), nrow(fits)*ncol(fits), replace = TRUE)
+  fits_with_error <- fits + error_samp
+  fits_prev <- exp(fits_with_error) / (1 + exp(fits_with_error))
   apply(fits_prev, 1, function(x) {sum(x>threshold)/n_sims})
 }
 
@@ -42,6 +46,10 @@ validate_posterior <- function(gam_model, prediction_data, n_sims, prob_threshol
   pred_mean <- predict(gam_model, prediction_data, type = "response")
   sims <- rmvn(n_sims, mu = coef(gam_model), V = vcov(gam_model, unconditional = TRUE))
   fits <- Cg %*% t(sims)
+  
+  # Add residual error
+  error_samp <- sample(gam_model$residuals, nrow(fits)*ncol(fits), replace = TRUE)
+  fits <- fits + error_samp
   fits_prev <- exp(fits) / (1 + exp(fits))
   
   # Calc prevalence threshold from probability threshold

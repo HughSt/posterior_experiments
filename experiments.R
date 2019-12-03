@@ -11,7 +11,7 @@ source("https://raw.githubusercontent.com/HughSt/posterior_experiments/master/us
 risk_raster <- simulate_risk(seed=1, 
               var=0.5, 
               scale=50, 
-              mean= -2)
+              mean= -5)
 names(risk_raster) <- "prev"
 
 
@@ -30,26 +30,25 @@ model_data <- initial_survey(1, villages, n=100, n_ind=100)
 # Fit GAM model. First calculate optimal 'range' parameter of a
 # gp model (using matern covariance model)
 REML_estimates <- optimal_range(min_dist = 0.01, 
+                                k = -1,
               max_dist = max(dist(model_data@data[,c("x", "y")])),
               model_data = model_data)
 
 # fit models
 gam_mod_gp_1 <- mgcv::gam(cbind(n_pos, n_neg) ~ 
                           s(x, y, bs="gp", 
+                            k=-1,
                             #m = c(3, 0.03)),
                             m = c(3,REML_estimates$best_m)),
-                          #s(as.factor(model_data$id), bs="re"),
+                          #method="GCV.Cp",
                         data = model_data, family="binomial")
 
-gam_mod_gp_2 <- mgcv::gamm(cbind(n_pos, n_neg) ~ 
-                           s(x, y, bs="gp", 
-                             m = c(3, 0.03)),
-                         #m = c(3,REML_estimates$best_m)),
-                         #s(id, bs="re"),
-                         correlation=corGaus(.1,form=~x+y),
-                         data = model_data@data, family="binomial")
+gam_mod_gp_2 <- mgcv::gam(cbind(n_pos, n_neg) ~ 
+                            s(x, y, k=99),
+                          #s(as.factor(model_data$id), bs="re"),
+                          data = model_data, family="binomial")
 plot(model_data$prev, predict(gam_mod_gp_1, type="response"))
-points(model_data$prev, predict(gam_mod_gp_2$gam, type="response"), pch=16)
+points(model_data$prev, predict(gam_mod_gp_2, type="response"), pch=16)
 
 # Fit GP model with INLA using the geostatsp package
 # glgm_mod <- glgm(formula = n_pos ~ 1, 
@@ -59,8 +58,10 @@ points(model_data$prev, predict(gam_mod_gp_2$gam, type="response"), pch=16)
 
 # Predict
 pred_raster <- gen_pred_stack(risk_raster)
-predictions <- predict(pred_raster, gam_mod_gp_1, type="response")
-plot(predictions)
+predictions_1 <- predict(pred_raster, gam_mod_gp_1, type="response")
+plot(predictions_1)
+predictions_2 <- predict(pred_raster, gam_mod_gp_2, type="response")
+plot(predictions_2)
 
 # Get exceedance probabilities
 exceedance_probs <- exceedance_prob(gam_mod_gp_1, as.data.frame(coordinates(pred_raster)), 500, 0.1)
@@ -91,11 +92,13 @@ for(i in 1:99){
 plot(1:99/100, validation_results$exceedance_perf ,
      xlab = "Exceedance probability",
      ylab = "Proportion correct")
+abline(1,-1, col="blue", lwd=2)
 
 # Plot coverage
 plot(1:99/100, validation_results$posterior_perf,
      xlab = "Centred prediction quantile",
      ylab = "Proportion correct")
+abline(0,1, col="blue", lwd=2)
 
 # plot 95% prediction intervals
 prediction_interval <- validate_posterior(gam_mod_gp, 
