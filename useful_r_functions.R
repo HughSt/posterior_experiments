@@ -25,7 +25,7 @@ exceedance_prob <- function(gam_model, prediction_data, n_sims, threshold){
   
   # Add residual error
   #error_samp <- sample(resid(gam_model), nrow(fits)*ncol(fits), replace = TRUE)
-  fits <- fits + error_samp
+  #fits <- fits + error_samp
   fits_prev <- exp(fits) / (1 + exp(fits))
   apply(fits_prev, 1, function(x) {sum(x>threshold)/n_sims})
 }
@@ -50,7 +50,7 @@ validate_posterior <- function(gam_model, prediction_data, n_sims, prob_threshol
   # Add residual error
   #error_samp <- sample(gam_model$residuals, nrow(fits)*ncol(fits), replace = TRUE)
   #error_samp <- rnorm(nrow(fits)*ncol(fits), sd(gam_model$residuals))
-  fits <- fits + error_samp
+  #fits <- fits + error_samp
   fits_prev <- exp(fits) / (1 + exp(fits))
   
   # Calc prevalence threshold from probability threshold

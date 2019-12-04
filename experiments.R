@@ -1,7 +1,9 @@
 library(mgcv)
-library(geostatsp)
 library(RANN)
-RFsimulate <- RandomFields::RFsimulate # REquired as geostatsp masks this function
+library(RandomFields)
+library(FactoMineR)
+library(spatstat)
+library(raster)
 
 # Experimenting with different spatial prediction methods for 
 # binomial data. Source useful functions
@@ -34,38 +36,29 @@ REML_estimates <- optimal_range(min_dist = 0.01,
               max_dist = max(dist(model_data@data[,c("x", "y")])),
               model_data = model_data)
 
-# fit models
+# fit model with optimal range
 gam_mod_gp_1 <- mgcv::gam(cbind(n_pos, n_neg) ~ 
                           s(x, y, bs="gp", 
                             k=99,
-                            #m = c(3, 0.03)),
                             m = c(3,REML_estimates$best_m)),
-                          #method="GCV.Cp",
+                          method = "REML",
                         data = model_data, family="binomial")
 
-gam_mod_gp_2 <- mgcv::bam(cbind(n_pos, n_neg) ~ 
-                            s(x, y, k=-1, bs = "gp"),
-                          #s(as.factor(model_data$id), bs="re"),
-                          data = model_data, family="binomial")
+# Plot obs v exp
 plot(model_data$prev, predict(gam_mod_gp_1, type="response"))
-points(model_data$prev, predict(gam_mod_gp_2, type="response"), pch=16)
 
-# Fit GP model with INLA using the geostatsp package
-# glgm_mod <- glgm(formula = n_pos ~ 1, 
-#      data = model_data, grid = 150, family = "binomial",
-#      Ntrials = (model_data$n_neg + model_data$n_neg), shape = 1, buffer = 0.1,
-#      priorCI = list(sd = c(0.2, 4), range = c(0.5, 5e+05)))
 
-# Predict
+# Predict on grid
 pred_raster <- gen_pred_stack(risk_raster)
 predictions_1 <- predict(pred_raster, gam_mod_gp_1, type="response")
 plot(predictions_1)
-predictions_2 <- predict(pred_raster, gam_mod_gp_2, type="response")
-plot(predictions_2)
 
 # Get exceedance probabilities
-exceedance_probs <- exceedance_prob(gam_mod_gp_1, as.data.frame(coordinates(pred_raster)), 500, 0.1)
-exceedance_probs_raster <- predictions
+exceedance_probs <- exceedance_prob(gam_mod_gp_1, 
+                                    as.data.frame(coordinates(pred_raster)), 
+                                    n_sims = 500, 
+                                    threshold = 0.002)
+exceedance_probs_raster <- predictions_1
 exceedance_probs_raster[] <- exceedance_probs
 plot(exceedance_probs_raster)
 
@@ -76,10 +69,10 @@ plot(exceedance_probs_raster)
 validation_results <- list(exceedance_perf=NULL,
                            posterior_perf=NULL)
 for(i in 1:99){
-  validation <- validate_posterior(gam_mod_gp_2, 
+  validation <- validate_posterior(gam_mod_gp_1, 
                      villages@data, 
                      n_sims = 1000, 
-                     prob_threshold = i/100,
+                     prob_threshold = i/1000,
                      prob_width = i/100)
 
   validation_results$exceedance_perf <- c(validation_results$exceedance_perf,
@@ -89,7 +82,7 @@ for(i in 1:99){
 }
 
 # Plot exceedance probabilities
-plot(1:99/100, validation_results$exceedance_perf ,
+plot(1:99/1000, validation_results$exceedance_perf ,
      xlab = "Exceedance probability",
      ylab = "Proportion correct")
 abline(1,-1, col="blue", lwd=2)
@@ -101,7 +94,7 @@ plot(1:99/100, validation_results$posterior_perf,
 abline(0,1, col="blue", lwd=2)
 
 # plot 95% prediction intervals
-prediction_interval <- validate_posterior(gam_mod_gp, 
+prediction_interval <- validate_posterior(gam_mod_gp_1, 
                    villages@data, 
                    n_sims = 500, 
                    prob_threshold = NULL,
