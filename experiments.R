@@ -11,7 +11,7 @@ source("https://raw.githubusercontent.com/HughSt/posterior_experiments/master/us
 risk_raster <- simulate_risk(seed=1, 
               var=0.5, 
               scale=50, 
-              mean= -5)
+              mean= -7)
 names(risk_raster) <- "prev"
 
 
@@ -25,26 +25,26 @@ plot(risk_raster)
 points(villages)
 
 # Take a sample
-model_data <- initial_survey(1, villages, n=100, n_ind=100)
+model_data <- initial_survey(1, villages, n=100, n_ind=500)
 
 # Fit GAM model. First calculate optimal 'range' parameter of a
 # gp model (using matern covariance model)
 REML_estimates <- optimal_range(min_dist = 0.01, 
-                                k = -1,
+                                k = 99,
               max_dist = max(dist(model_data@data[,c("x", "y")])),
               model_data = model_data)
 
 # fit models
 gam_mod_gp_1 <- mgcv::gam(cbind(n_pos, n_neg) ~ 
                           s(x, y, bs="gp", 
-                            k=-1,
+                            k=99,
                             #m = c(3, 0.03)),
                             m = c(3,REML_estimates$best_m)),
                           #method="GCV.Cp",
                         data = model_data, family="binomial")
 
-gam_mod_gp_2 <- mgcv::gam(cbind(n_pos, n_neg) ~ 
-                            s(x, y, k=99),
+gam_mod_gp_2 <- mgcv::bam(cbind(n_pos, n_neg) ~ 
+                            s(x, y, k=-1, bs = "gp"),
                           #s(as.factor(model_data$id), bs="re"),
                           data = model_data, family="binomial")
 plot(model_data$prev, predict(gam_mod_gp_1, type="response"))
@@ -76,9 +76,9 @@ plot(exceedance_probs_raster)
 validation_results <- list(exceedance_perf=NULL,
                            posterior_perf=NULL)
 for(i in 1:99){
-  validation <- validate_posterior(gam_mod_gp_1, 
+  validation <- validate_posterior(gam_mod_gp_2, 
                      villages@data, 
-                     n_sims = 500, 
+                     n_sims = 1000, 
                      prob_threshold = i/100,
                      prob_width = i/100)
 
@@ -156,7 +156,7 @@ for(i in prev_cutoffs){
   #                                  prob_threshold = i/100,
   #                                  prob_width = i/100)
   
-                        validation_spaMM <- vp(lfit, 
+                        validation_spaMM <- validate_posterior_spaMM(lfit, 
                                                villages@data, 
                                                n_sims = 500, 
                                                prob_threshold = i/100,
