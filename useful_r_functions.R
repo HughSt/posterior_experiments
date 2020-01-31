@@ -7,14 +7,14 @@ library(spatstat)
 # Estimate optimal range parameter in a gp smooth
 optimal_range <- function(min_dist, max_dist, length.out = 100, model_data, k=-1){
   
-REML <- r <- seq(min_dist, max_dist, length.out = length.out)
-for (i in seq_along(r)) {
-  m <- gam(cbind(n_pos, n_neg) ~ s(x, y, k = k, bs = "gp", m = c(3, r[i])), 
-           family = "binomial", data = model_data, method = "REML")
-  REML[i] <- m$gcv.ubre
-}
-return(list(REML = REML,
-            best_m = r[which.min(REML)]))
+  REML <- r <- seq(min_dist, max_dist, length.out = length.out)
+  for (i in seq_along(r)) {
+    m <- gam(cbind(n_pos, n_neg) ~ s(x, y, k = k, bs = "gp", m = c(3, r[i])), 
+             family = "binomial", data = model_data, method = "REML")
+    REML[i] <- m$gcv.ubre
+  }
+  return(list(REML = REML,
+              best_m = r[which.min(REML)]))
 }
 
 ## Get exceedance probabilities
@@ -41,7 +41,7 @@ posterior_mean <- function(gam_model, prediction_data, n_sims){
 }
 
 validate_posterior <- function(gam_model, prediction_data, n_sims, prob_threshold, prob_width){
-  
+
   Cg <- predict(gam_model, prediction_data, type = "lpmatrix")
   pred_mean <- predict(gam_model, prediction_data, type = "response")
   sims <- rmvn(n_sims, mu = coef(gam_model), V = vcov(gam_model, unconditional = TRUE))
@@ -56,14 +56,35 @@ validate_posterior <- function(gam_model, prediction_data, n_sims, prob_threshol
   # Calc prevalence threshold from probability threshold
   prev_threshold <- apply(fits_prev, 1, function(x){quantile(x, prob = prob_threshold)})
   exceedance_perf <- mean(prediction_data$prev >= prev_threshold)
-  
+
   # Calc proportion of true prevalence values fall within the middle 
   # prob_width
   quant_probs <- c((1 - prob_width)/2, (1 - (1 - prob_width)/2))
   prev_quantiles <- apply(fits_prev, 1, function(x){quantile(x, prob = quant_probs)})
   posterior_perf <- mean(prediction_data$prev >= prev_quantiles[1,] & prediction_data$prev <= prev_quantiles[2,])
+
+  
+  # Calc stats for aggregation
+  cluster_posterior <- apply(fits_prev, 2, function(x){tapply(x, prediction_data$cluster , mean)})
+  cluster_prev_threshold <- apply(cluster_posterior, 1, function(x){quantile(x, prob = prob_threshold)})
+  cluster_prev <- tapply(prediction_data$prev, prediction_data$cluster, mean)
+  cluster_exceedance_perf <- mean(cluster_prev >= cluster_prev_threshold)
+  
+  cluster_prev_quantiles <- apply(cluster_posterior, 1, function(x){quantile(x, prob = quant_probs)})
+  cluster_posterior_perf <- mean(cluster_prev >= cluster_prev_quantiles[1,] & 
+                                   cluster_prev  <= cluster_prev_quantiles[2,])
+  
+  # par(mfrow = c(2,2))
+  # for(i in 1:max(clust$cluster)){
+  #   hist(cluster_posterior[i,], breaks=40)
+  #   lines(rep(tapply(prediction_data$prev, prediction_data$cluster, mean)[i],2), c(0,1000), col="red", lwd=3)
+  # }
+  # 
+  
   return(list(exceedance_perf = exceedance_perf,
               posterior_perf = posterior_perf,
+              cluster_exceedance_perf = cluster_exceedance_perf,
+              cluster_posterior_perf = cluster_posterior_perf,
               prev_quantiles = t(prev_quantiles)))
 }
 

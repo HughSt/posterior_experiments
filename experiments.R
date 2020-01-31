@@ -13,7 +13,7 @@ source("https://raw.githubusercontent.com/HughSt/posterior_experiments/master/us
 risk_raster <- simulate_risk(seed=1, 
               var=0.5, 
               scale=50, 
-              mean= -7)
+              mean= -2)
 names(risk_raster) <- "prev"
 
 
@@ -27,7 +27,7 @@ plot(risk_raster)
 points(villages)
 
 # Take a sample
-model_data <- initial_survey(1, villages, n=100, n_ind=500)
+model_data <- initial_survey(1, villages, n=100, n_ind=100)
 
 # Fit GAM model. First calculate optimal 'range' parameter of a
 # gp model (using matern covariance model)
@@ -41,11 +41,18 @@ gam_mod_gp_1 <- mgcv::gam(cbind(n_pos, n_neg) ~
                           s(x, y, bs="gp", 
                             k=99,
                             m = c(3,REML_estimates$best_m)),
-                          method = "REML",
+                          #method = "REML",
+                          #method = "GCV"
                         data = model_data, family="binomial")
 
 # Plot obs v exp
 plot(model_data$prev, predict(gam_mod_gp_1, type="response"))
+
+# Plot across a single lng
+pred_sing_lng <- data.frame(x = rep(mean(model_data$x), 500), 
+                            y = seq(min(model_data$y), max(model_data$y), length.out = 500))
+plot(pred_sing_lng$y, predict(gam_mod_gp_1, pred_sing_lng, type="response"),
+     type="l", lwd=2)
 
 
 # Predict on grid
@@ -57,7 +64,7 @@ plot(predictions_1)
 exceedance_probs <- exceedance_prob(gam_mod_gp_1, 
                                     as.data.frame(coordinates(pred_raster)), 
                                     n_sims = 500, 
-                                    threshold = 0.002)
+                                    threshold = 0.5)
 exceedance_probs_raster <- predictions_1
 exceedance_probs_raster[] <- exceedance_probs
 plot(exceedance_probs_raster)
@@ -66,29 +73,49 @@ plot(exceedance_probs_raster)
 # the 'true' prevalence value was above threshold and compare to 
 # exceedance probabilities and 2) calc the proportion of times
 # the true prevalence value lies within defined quantile range of the posterior 
+# First give the prediction_points a cluster
+villages@data$cluster <- kmeans(coordinates(villages), 50)$cluster
 validation_results <- list(exceedance_perf=NULL,
-                           posterior_perf=NULL)
+                           posterior_perf=NULL,
+                           cluster_exceedance_perf=NULL,
+                           cluster_posterior_perf=NULL)
 for(i in 1:99){
   validation <- validate_posterior(gam_mod_gp_1, 
                      villages@data, 
                      n_sims = 1000, 
-                     prob_threshold = i/1000,
+                     prob_threshold = i/100,
                      prob_width = i/100)
 
   validation_results$exceedance_perf <- c(validation_results$exceedance_perf,
                                           validation$exceedance_perf)
   validation_results$posterior_perf <- c(validation_results$posterior_perf,
                                          validation$posterior_perf)
+  validation_results$cluster_exceedance_perf <- c(validation_results$cluster_exceedance_perf,
+                                          validation$cluster_exceedance_perf)
+  validation_results$cluster_posterior_perf <- c(validation_results$cluster_posterior_perf,
+                                         validation$cluster_posterior_perf)
 }
 
 # Plot exceedance probabilities
-plot(1:99/1000, validation_results$exceedance_perf ,
+plot(1:99/100, validation_results$exceedance_perf ,
      xlab = "Exceedance probability",
      ylab = "Proportion correct")
 abline(1,-1, col="blue", lwd=2)
 
 # Plot coverage
 plot(1:99/100, validation_results$posterior_perf,
+     xlab = "Centred prediction quantile",
+     ylab = "Proportion correct")
+abline(0,1, col="blue", lwd=2)
+
+# Plot exceedance probabilities for clusters
+plot(1:99/100, validation_results$cluster_exceedance_perf,
+     xlab = "Exceedance probability",
+     ylab = "Proportion correct")
+abline(1,-1, col="blue", lwd=2)
+
+# Plot coverage for clusters
+plot(1:99/100, validation_results$cluster_posterior_perf,
      xlab = "Centred prediction quantile",
      ylab = "Proportion correct")
 abline(0,1, col="blue", lwd=2)
@@ -119,12 +146,17 @@ for(i in 1:nrow(prediction_interval$prev_quantiles)){
 library(spaMM)
 lfit <- fitme(cbind(n_pos, n_neg) ~
                    Matern(1|x+y),
+                  fixed = list(nu = 3/2),
                   data=model_data@data,
                   family=binomial())
 
 pred_raster <- gen_pred_stack(risk_raster)
 predictions_lfit <- predict(pred_raster, lfit, type="response")
 plot(predictions_lfit)
+
+# Plot for single lat
+plot(pred_sing_lng$y, predict(lfit, pred_sing_lng, type="response"),
+     type="l", lwd=2)
 
 sims <- simulate(lfit, 
                  type = "(ranef|response)", 
@@ -135,7 +167,7 @@ pal <- colorNumeric(tim.colors(), c(0,60))
 plot(villages$x, villages$y, col = pal(sims[,1]), pch= 16)
 
 res <- validate_posterior_spaMM(lfit, villages@data, 100, 0.2, 0.2)
-
+res$posterior_perf
 
 # Validate the Posterior of the spaMM model. Get a cup of tea...
 validation_results_spaMM <- list(exceedance_perf=NULL,
@@ -169,7 +201,7 @@ plot(prev_cutoffs/100, validation_results_spaMM$exceedance_perf ,
 # Plot coverage
 plot(prev_cutoffs/100, validation_results_spaMM$posterior_perf,
      xlab = "Centred prediction quantile",
-     ylab = "Proportion correct")
+     ylab = "Proportion correct"); abline(0,1)
 
 # plot 95% prediction intervals
 prediction_interval_spaMM <-  validate_posterior_spaMM(lfit, 
