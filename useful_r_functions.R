@@ -89,15 +89,15 @@ validate_posterior <- function(gam_model, prediction_data, n_sims, prob_threshol
 }
 
 
-validate_posterior_spaMM <- function(spaMM_model, prediction_data, n_sims, prob_threshold, prob_width){
-  
+validate_posterior_spaMM <- function(spaMM_model, prediction_data, n_sims, n_ind, prob_threshold, prob_width){
+
   fits_prev <- simulate(spaMM_model, 
                    type = "(ranef|response)", 
                    nsim = n_sims,
                    newdata =prediction_data)
   
   # Convert to prevalence
-  fits_prev <- fits_prev/100
+  fits_prev <- fits_prev/n_ind
   
   # Calc prevalence threshold from probability threshold
   prev_threshold <- apply(fits_prev, 1, function(x){quantile(x, prob = prob_threshold)})
